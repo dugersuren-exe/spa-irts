@@ -33,7 +33,7 @@ npx create-react-app spa-irts --template typescript
 ### Аппын фолдер руу ор
 
 ```
-cd my-app
+cd spa-irts
 ```
 
 
@@ -354,9 +354,324 @@ export function Navbar() {
 }
 
 ```
+App.tsx файлыг өөрчлөх
 
 
-4. 
-5.  
-6.  
-7.  
+```
+import React from 'react';
+import { BrowserRouter as Router, Routes, Route } from 'react-router-dom';
+import Home from './pages/Home';
+import About from './pages/About';
+import Counter from './pages/Counter';
+import Student from './pages/Student';
+import Teacher from './pages/Teacher';
+
+import NotFound from './pages/NotFound';
+import { Navbar } from './components/Navbar';
+
+function App() {
+
+
+  return (
+    <Router>
+      <Navbar />
+      <Routes>
+        <Route path="/" element={<Home />} />
+        <Route path="/counter" element={<Counter />} />
+        <Route path="/student" element={<Student />} />
+        <Route path="/teacher" element={<Teacher />} />
+        <Route path="/about" element={<About />} />
+        <Route path="*" element={<NotFound />} /> {/* 404 page */}
+      </Routes>
+    </Router>
+  );
+}
+
+export default App;
+
+```
+
+
+
+## Ажиллуулж шалгахдаа
+
+```
+npm run start
+```
+
+
+Redux болон redux-thunk ашиглан API-тай харилцаж, CRUD үйлдлүүдийг гүйцэтгэх жишээг доор тайлбарлая. Бид энд жишээ болгон хэрэглэгч (users) хуудас үүсгэж, дараах CRUD үйлдлүүдийг хийнэ:
+
+* Create - Хэрэглэгч нэмэх
+* Read - Хэрэглэгчдийн жагсаалт авах
+* Update - Хэрэглэгчийн мэдээлэл шинэчлэх
+* Delete - Хэрэглэгч устгах
+
+Алхам 1: Redux Store болон Reducer үүсгэх
+
+Store үүсгэх: src/store/store.ts
+
+```
+import { configureStore } from '@reduxjs/toolkit';
+import usersReducer from './reducers/usersReducer';
+
+const store = configureStore({
+  reducer: {
+    users: usersReducer,
+  },
+});
+
+export type RootState = ReturnType<typeof store.getState>;
+export type AppDispatch = typeof store.dispatch;
+
+export default store;
+Reducer үүсгэх: src/store/reducers/usersReducer.ts
+
+Энэхүү reducer нь хэрэглэгчдийн жагсаалтыг удирдана.
+ts
+Copy code
+import { createSlice, PayloadAction } from '@reduxjs/toolkit';
+import { User } from '../types';
+
+interface UsersState {
+  users: User[];
+  loading: boolean;
+  error: string | null;
+}
+
+const initialState: UsersState = {
+  users: [],
+  loading: false,
+  error: null,
+};
+
+const usersSlice = createSlice({
+  name: 'users',
+  initialState,
+  reducers: {
+    fetchUsersStart(state) {
+      state.loading = true;
+    },
+    fetchUsersSuccess(state, action: PayloadAction<User[]>) {
+      state.loading = false;
+      state.users = action.payload;
+    },
+    fetchUsersFailure(state, action: PayloadAction<string>) {
+      state.loading = false;
+      state.error = action.payload;
+    },
+    addUser(state, action: PayloadAction<User>) {
+      state.users.push(action.payload);
+    },
+    updateUser(state, action: PayloadAction<User>) {
+      const index = state.users.findIndex(user => user.id === action.payload.id);
+      if (index !== -1) {
+        state.users[index] = action.payload;
+      }
+    },
+    deleteUser(state, action: PayloadAction<number>) {
+      state.users = state.users.filter(user => user.id !== action.payload);
+    },
+  },
+});
+
+export const {
+  fetchUsersStart,
+  fetchUsersSuccess,
+  fetchUsersFailure,
+  addUser,
+  updateUser,
+  deleteUser,
+} = usersSlice.actions;
+
+export default usersSlice.reducer;
+Types тодорхойлох: src/store/types.ts
+
+Хэрэглэгчийн төрлийг тодорхойлно.
+ts
+Copy code
+export interface User {
+  id: number;
+  name: string;
+  email: string;
+}
+Алхам 2: Thunk үүсгэх
+CRUD үйлдлүүдэд зориулсан Thunk-уудыг src/store/actions/usersActions.ts файлд үүсгэнэ. Эдгээр нь API дуудлагуудыг хийхэд хэрэглэгдэнэ.
+
+ts
+Copy code
+import { AppDispatch } from '../store';
+import {
+  fetchUsersStart,
+  fetchUsersSuccess,
+  fetchUsersFailure,
+  addUser,
+  updateUser,
+  deleteUser,
+} from '../reducers/usersReducer';
+import { User } from '../types';
+
+// API URL
+const API_URL = 'https://jsonplaceholder.typicode.com/users';
+
+// Fetch all users (Read)
+export const fetchUsers = () => async (dispatch: AppDispatch) => {
+  dispatch(fetchUsersStart());
+  try {
+    const response = await fetch(API_URL);
+    const data: User[] = await response.json();
+    dispatch(fetchUsersSuccess(data));
+  } catch (error: any) {
+    dispatch(fetchUsersFailure(error.message));
+  }
+};
+
+// Create a new user
+export const createUser = (user: Omit<User, 'id'>) => async (dispatch: AppDispatch) => {
+  try {
+    const response = await fetch(API_URL, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(user),
+    });
+    const newUser: User = await response.json();
+    dispatch(addUser(newUser));
+  } catch (error: any) {
+    console.error('Error creating user:', error);
+  }
+};
+
+// Update a user
+export const editUser = (user: User) => async (dispatch: AppDispatch) => {
+  try {
+    const response = await fetch(`${API_URL}/${user.id}`, {
+      method: 'PUT',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(user),
+    });
+    const updatedUser: User = await response.json();
+    dispatch(updateUser(updatedUser));
+  } catch (error: any) {
+    console.error('Error updating user:', error);
+  }
+};
+
+// Delete a user
+export const removeUser = (userId: number) => async (dispatch: AppDispatch) => {
+  try {
+    await fetch(`${API_URL}/${userId}`, {
+      method: 'DELETE',
+    });
+    dispatch(deleteUser(userId));
+  } catch (error: any) {
+    console.error('Error deleting user:', error);
+  }
+};
+Алхам 3: Компонент дээр CRUD үйлдлийг ашиглах
+Users жагсаалт харуулах: src/components/Users.tsx
+API-аас хэрэглэгчдийн жагсаалтыг дуудаж, харуулах.
+tsx
+Copy code
+import React, { useEffect } from 'react';
+import { useDispatch, useSelector } from 'react-redux';
+import { fetchUsers, removeUser } from '../store/actions/usersActions';
+import { RootState } from '../store/store';
+
+const Users: React.FC = () => {
+  const dispatch = useDispatch();
+  const { users, loading, error } = useSelector((state: RootState) => state.users);
+
+  useEffect(() => {
+    dispatch(fetchUsers());
+  }, [dispatch]);
+
+  if (loading) return <p>Loading...</p>;
+  if (error) return <p>Error: {error}</p>;
+
+  return (
+    <div>
+      <h1>Users List</h1>
+      <ul>
+        {users.map(user => (
+          <li key={user.id}>
+            {user.name} - {user.email}
+            <button onClick={() => dispatch(removeUser(user.id))}>Delete</button>
+          </li>
+        ))}
+      </ul>
+    </div>
+  );
+};
+
+export default Users;
+Шинэ хэрэглэгч нэмэх: src/components/AddUser.tsx
+Шинэ хэрэглэгчийг нэмж оруулахад ашиглах.
+tsx
+Copy code
+import React, { useState } from 'react';
+import { useDispatch } from 'react-redux';
+import { createUser } from '../store/actions/usersActions';
+
+const AddUser: React.FC = () => {
+  const [name, setName] = useState('');
+  const [email, setEmail] = useState('');
+  const dispatch = useDispatch();
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    dispatch(createUser({ name, email }));
+    setName('');
+    setEmail('');
+  };
+
+  return (
+    <form onSubmit={handleSubmit}>
+      <input
+        type="text"
+        placeholder="Name"
+        value={name}
+        onChange={(e) => setName(e.target.value)}
+      />
+      <input
+        type="email"
+        placeholder="Email"
+        value={email}
+        onChange={(e) => setEmail(e.target.value)}
+      />
+      <button type="submit">Add User</button>
+    </form>
+  );
+};
+
+export default AddUser;
+Алхам 4: Аппликейшнд CRUD интеграц хийх
+App.tsx файлд бүх компонентоо нэгтгэнэ:
+
+tsx
+Copy code
+import React from 'react';
+import { Provider } from 'react-redux';
+import store from './store/store';
+import Users from './components/Users';
+import AddUser from './components/AddUser';
+
+const App: React.FC = () => {
+  return (
+    <Provider store={store}>
+      <div>
+        <h1>User Management</h1>
+        <AddUser />
+        <Users />
+      </div>
+    </Provider>
+  );
+};
+
+export default App;
+
+
+
