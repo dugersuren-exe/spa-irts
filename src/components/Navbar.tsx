@@ -10,6 +10,9 @@ export function Navbar() {
           <Link className="text-blue-500" to="/">Home</Link>
         </li>
         <li>
+          <Link className="text-blue-500" to="/counter">Counter</Link>
+        </li>
+        <li>
           <Link className="text-blue-500" to="/about">About</Link>
         </li>
       </ul>
