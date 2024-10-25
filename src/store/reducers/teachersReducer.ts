@@ -1,10 +1,19 @@
 import { createSlice, PayloadAction } from '@reduxjs/toolkit';
 
+// interface Teacher {
+//   id: number;
+//   name: string;
+//   subject: string;
+// }
+
 interface Teacher {
-  id: number;
-  name: string;
-  subject: string;
+    id: number;
+    fullName: string;
+    gender: string;
+    phoneNumber: string;
+    lesson: string;
 }
+
 
 interface TeachersState {
   teachers: Teacher[];
